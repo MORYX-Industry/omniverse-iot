@@ -46,6 +46,8 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 CONTENT_DIR = Path(SCRIPT_DIR).resolve().parents[1].joinpath("content")
 
 messages = []
+live_cube : LiveCube
+stage : Usd.Stage
 
 
 def log_handler(thread, component, level, message):
@@ -96,6 +98,7 @@ async def initialize_async(iot_topic):
         message="Copy Conveyor Belt",
     )
 
+    global stage
     stage = Usd.Stage.Open(stage_url)
     if not stage:
         raise Exception(f"Could load the stage {stage_url}.")
@@ -111,36 +114,33 @@ async def initialize_async(iot_topic):
     initialize_device_prim(live_layer, iot_topic)
 
     # place the cube on the conveyor
-    live_cube = LiveCube(stage)
-    live_cube.scale(Gf.Vec3f(0.5))
-    live_cube.translate(Gf.Vec3f(100.0, -30.0, 195.0))
+    #global live_cube
+    #live_cube = LiveCube(stage)
+    #live_cube.scale(Gf.Vec3f(0.5))
+    #live_cube.translate(Gf.Vec3f(100.0, -30.0, 195.0))
 
     omni.client.live_process()
     return stage, live_layer
 
-
 def write_to_live(live_layer, iot_topic, msg_content):
-    # write the iot values to the usd prim attributes
+    # First split the topic and extract
     payload = json.loads(msg_content)
-    with Sdf.ChangeBlock():
-        for i, (id, value) in enumerate(payload.items()):
-            attr = live_layer.GetAttributeAtPath(f"/iot/{iot_topic}.{id}")
-            if not attr:
-                raise Exception(f"Could not find attribute /iot/{iot_topic}.{id}.")
-            attr.default = value
+    segments = iot_topic.split("/")
+
+    print( payload)
+
+    global live_cube
+    if segments[2] == "place":
+        # Create the cube
+        live_cube = LiveCube(stage)
+        live_cube.scale(Gf.Vec3f(0.5))
+        live_cube.translate(Gf.Vec3f(payload["X"], payload["Y"], payload["Z"]))
+    elif segments[2] == "place":
+        stage.RemovePrim("/World/cube")
+    elif segments[2] == "translate":
+        live_cube.translate(Gf.Vec3f(payload["X"], payload["Y"], payload["Z"]))
+
     omni.client.live_process()
-
-
-# publish to mqtt broker
-def write_to_mqtt(mqtt_client, iot_topic, group, ts):
-    # write the iot values to the usd prim attributes
-    topic = f"iot/{iot_topic}"
-    print(group.iloc[0]["TimeStamp"])
-    payload = {"_ts": ts}
-    for index, row in group.iterrows():
-        payload[row["Id"]] = row["Value"]
-    mqtt_client.publish(topic, json.dumps(payload, indent=2).encode("utf-8"))
-
 
 # connect to mqtt broker
 def connect_mqtt(iot_topic):
@@ -149,15 +149,15 @@ def connect_mqtt(iot_topic):
     # called when a message arrives
     def on_message(client, userdata, msg):
         msg_content = msg.payload.decode()
-        write_to_live(live_layer, iot_topic, msg_content)
         print(f"Received `{msg_content}` from `{msg.topic}` topic")
+        write_to_live(live_layer, msg.topic, msg_content)
 
     # called when connection to mqtt broker has been established
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
             # connect to our topic
             print(f"Subscribing to topic: {topic}")
-            client.subscribe(topic)
+            client.subscribe(topic + "/#")
         else:
             print(f"Failed to connect, return code {rc}")
 
@@ -171,7 +171,7 @@ def connect_mqtt(iot_topic):
     client.on_connect = on_connect
     client.on_message = on_message
     client.on_subscribe = on_subscribe
-    client.connect("test.mosquitto.org", 1883)
+    client.connect("localhost", 1883)
     client.loop_start()
     return client
 
@@ -198,7 +198,7 @@ def run(stage, live_layer, iot_topic):
         diff = (next_time - last_time).total_seconds()
         if diff > 0:
             time.sleep(diff)
-            write_to_mqtt(mqtt_client, iot_topic, group, (next_time - start_time).total_seconds())
+            # write_to_mqtt(mqtt_client, iot_topic, group, (next_time - start_time).total_seconds())
         last_time = next_time
 
     mqtt_client = None
