@@ -17,14 +17,14 @@ class LiveCube:
         faceVertexIndices = [0, 1, 2, 3, 4, 5, 6, 7, 0, 6, 5, 1, 4, 7, 3, 2, 0, 3, 7, 6, 4, 2, 1, 5]
         faceVertexCounts = [4, 4, 4, 4, 4, 4]
 
-        cube = stage.GetPrimAtPath("/World/cube")
+        cube = stage.GetPrimAtPath("/World/actuator")
         if not cube:
             cube = stage.DefinePrim("/World/cube", "Cube")
 
         if not cube:
             raise Exception("Could load the cube: /World/cube.")
 
-        self.mesh = stage.GetPrimAtPath("/World/cube/mesh")
+        self.mesh = stage.GetPrimAtPath("/World/actuator/mesh")
         if not self.mesh:
             self.mesh = UsdGeom.Mesh.Define(stage, "/World/cube/mesh")
             self.mesh.CreatePointsAttr().Set(points)
@@ -45,10 +45,10 @@ class LiveCube:
             random.uniform(-1.0, 1.0) * 10.0, random.uniform(-1.0, 1.0) * 10.0, random.uniform(-1.0, 1.0) * 10.0
         )
 
-        material = UsdShade.Material.Define(stage, '/World/Looks/Plastic_Yellow_A')
-        if material:
-            self.mesh.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
-            UsdShade.MaterialBindingAPI(self.mesh).Bind(material)
+        #material = UsdShade.Material.Define(stage, '/World/Looks/Plastic_Yellow_A')
+        #if material:
+        #    self.mesh.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
+        #    UsdShade.MaterialBindingAPI(self.mesh).Bind(material)
 
         self._rotateXYZOp = None
         self._scale = None
@@ -64,7 +64,7 @@ class LiveCube:
 
         if self._rotateXYZOp is None:
             self._rotateXYZOp = self.cube.AddRotateXYZOp()
-        self._rotation = Gf.Vec3f(0.0, 0.0, 0.0)
+        self._rotation = Gf.Vec3f(-90.0, 180.0, 0.0)
         self._rotateXYZOp.Set(self._rotation)
 
     def translate(self, value: Gf.Vec3f):

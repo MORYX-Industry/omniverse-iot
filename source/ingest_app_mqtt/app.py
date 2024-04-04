@@ -87,31 +87,29 @@ def initialize_device_prim(live_layer, iot_topic):
 
 async def initialize_async(iot_topic):
     # copy a the Conveyor Belt to the target nucleus server
-    stage_name = f"ConveyorBelt_{iot_topic}"
+    stage_name = f"{iot_topic}"
     local_folder = f"file:{CONTENT_DIR}/{stage_name}"
     stage_folder = f"{BASE_FOLDER}/{stage_name}"
-    stage_url = f"{stage_folder}/{stage_name}.usd"
-    result = await omni.client.copy_async(
-        local_folder,
-        stage_folder,
-        behavior=omni.client.CopyBehavior.ERROR_IF_EXISTS,
-        message="Copy Conveyor Belt",
-    )
+    stage_url = f"{stage_folder}/crimp_machine.usd"
 
     global stage
     stage = Usd.Stage.Open(stage_url)
     if not stage:
         raise Exception(f"Could load the stage {stage_url}.")
 
+    print("Open live session")
     live_session = LiveEditSession(stage_url)
     live_layer = await live_session.ensure_exists()
 
+    print("Open session layer")
     session_layer = stage.GetSessionLayer()
     session_layer.subLayerPaths.append(live_layer.identifier)
 
     # set the live layer as the edit target
+    print("Set target")
     stage.SetEditTarget(live_layer)
-    initialize_device_prim(live_layer, iot_topic)
+
+    #initialize_device_prim(live_layer, iot_topic)
 
     # place the cube on the conveyor
     #global live_cube
@@ -133,9 +131,7 @@ def write_to_live(live_layer, iot_topic, msg_content):
     if segments[2] == "place":
         # Create the cube
         live_cube = LiveCube(stage)
-        live_cube.scale(Gf.Vec3f(0.5))
-        live_cube.translate(Gf.Vec3f(payload["X"], payload["Y"], payload["Z"]))
-    elif segments[2] == "place":
+    elif segments[2] == "remove":
         stage.RemovePrim("/World/cube")
     elif segments[2] == "translate":
         live_cube.translate(Gf.Vec3f(payload["X"], payload["Y"], payload["Z"]))
@@ -177,35 +173,20 @@ def connect_mqtt(iot_topic):
 
 
 def run(stage, live_layer, iot_topic):
-    # we assume that the file contains the data for single device
-    IOT_TOPIC_DATA = f"{CONTENT_DIR}/{iot_topic}_iot_data.csv"
-    data = pd.read_csv(IOT_TOPIC_DATA)
-    data.head()
-
-    # Converting to DateTime Format and drop ms
-    data["TimeStamp"] = pd.to_datetime(data["TimeStamp"])
-    data["TimeStamp"] = data["TimeStamp"].dt.floor("s")
-
-    data.set_index("TimeStamp")
-    start_time = data.min()["TimeStamp"]
-    last_time = start_time
-    grouped = data.groupby("TimeStamp")
+    print("Connecting MQTT")
 
     mqtt_client = connect_mqtt(iot_topic)
 
     # play back the data in real-time
-    for next_time, group in grouped:
-        diff = (next_time - last_time).total_seconds()
-        if diff > 0:
-            time.sleep(diff)
-            # write_to_mqtt(mqtt_client, iot_topic, group, (next_time - start_time).total_seconds())
-        last_time = next_time
+    #for next_time, group in grouped:
+    while True:
+        time.sleep(1)
 
     mqtt_client = None
 
 
 if __name__ == "__main__":
-    IOT_TOPIC = "A08_PR_NVD_01"
+    IOT_TOPIC = "HMI_Crimp"
     omni.client.initialize()
     omni.client.set_log_level(omni.client.LogLevel.DEBUG)
     omni.client.set_log_callback(log_handler)
