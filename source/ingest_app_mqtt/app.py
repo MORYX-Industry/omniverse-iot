@@ -32,7 +32,8 @@ import time
 from paho.mqtt import client as mqtt_client
 import random
 import json
-from omni.live import LiveEditSession, LiveCube, getUserNameFromToken
+from omni.live import LiveEditSession, getUserNameFromToken
+from source.ingest_app_mqtt.prim_mesh import PrimMesh
 
 OMNI_HOST = os.environ.get("OMNI_HOST", "localhost")
 OMNI_USER = os.environ.get("OMNI_USER", "ov")
@@ -46,7 +47,7 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 CONTENT_DIR = Path(SCRIPT_DIR).resolve().parents[1].joinpath("content")
 
 messages = []
-live_cube : LiveCube
+live_cube : PrimMesh
 stage : Usd.Stage
 
 
@@ -130,9 +131,9 @@ def write_to_live(live_layer, iot_topic, msg_content):
     global live_cube
     if segments[2] == "place":
         # Create the cube
-        live_cube = LiveCube(stage)
+        live_cube = PrimMesh(stage, payload["path"])
     elif segments[2] == "remove":
-        stage.RemovePrim("/World/cube")
+        stage.RemovePrim(payload["path"])
     elif segments[2] == "translate":
         live_cube.translate(Gf.Vec3f(payload["X"], payload["Y"], payload["Z"]))
 
